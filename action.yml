@@ -1,0 +1,58 @@
+name: setup-uv
+
+description: Install Astral's uv on GitHub runners and add it to PATH.
+
+author: FractionEstate
+
+inputs:
+  version:
+    description: "Specific uv version to install (e.g., 0.9.5). Defaults to latest."
+    required: false
+    default: ""
+  add-to-path:
+    description: "Whether to add the discovered install directory to PATH."
+    required: false
+    default: "true"
+
+outputs:
+  version:
+    description: "The installed uv version (as reported by 'uv --version')."
+    value: ${{ steps.detect.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install uv via official installer
+      shell: bash
+      run: |
+        set -euo pipefail
+        url="https://astral.sh/uv/install.sh"
+        if [ -n "${{ inputs.version }}" ]; then
+          url="https://astral.sh/uv/${{ inputs.version }}/install.sh"
+        fi
+        curl -LsSf "$url" | sh
+
+    - name: Ensure uv is on PATH
+      if: ${{ inputs.add-to-path == 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        for d in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
+          if [ -x "$d/uv" ]; then
+            echo "$d" >> "$GITHUB_PATH"
+            break
+          fi
+        done
+
+    - id: detect
+      name: Detect uv version
+      shell: bash
+      run: |
+        set -euo pipefail
+        if ! command -v uv >/dev/null 2>&1; then
+          echo "uv not found on PATH after installation." >&2
+          exit 1
+        fi
+        ver=$(uv --version | head -n1)
+        echo "Installed: $ver"
+        echo "version=$ver" >> "$GITHUB_OUTPUT"
